@@ -18,6 +18,26 @@ This repository provides scripts to export Depth Anything 3 models to ONNX forma
 - **Dynamic Input Support**: Flexible input resolution handling
 - **Easy Integration**: Simple API for depth estimation in your projects
 
+## Performance
+
+ONNX models provide significant performance benefits:
+- **Reduced Memory**: No PyTorch runtime overhead
+- **Cross-Platform**: Runs on CPU, CUDA, TensorRT, DirectML, Coreml, etc.
+- **Optimized**: ONNXRuntime automatically optimizes the graph
+- Depth Anything 3 ONNX Performance Report
+  - **Model:** `depth-anything/DA3-SMALL`
+  - **Platform:** macOS M4 (CPU)
+  - **Runtime:** ONNX Runtime with CPUExecutionProvider
+
+
+| Resolution | Model Size | Mean Time | Std Dev | Min | Max | Median | P95 | P99 | FPS |
+|------------|------------|-----------|---------|-----|-----|--------|-----|-----|-----|
+| 224x224 | 96.1 MB | 92.44ms | 2.28ms | 88.89ms | 96.30ms | 92.49ms | 96.11ms | 96.26ms | 10.82 |
+| 392x392 | 96.1 MB | 279.67ms | 8.04ms | 271.08ms | 298.78ms | 278.13ms | 298.48ms | 298.72ms | 3.58 |
+| 504x504 | 96.1 MB | 506.84ms | 14.97ms | 490.04ms | 545.88ms | 504.01ms | 541.25ms | 544.95ms | 1.97 |
+| 672x672 | 96.1 MB | 1101.54ms | 15.72ms | 1078.86ms | 1131.54ms | 1097.70ms | 1121.84ms | 1129.60ms | 0.91 |
+| 840x840 | 96.1 MB | 2206.96ms | 63.76ms | 2115.01ms | 2365.68ms | 2209.16ms | 2298.87ms | 2352.32ms | 0.45 |
+
 ## Installation
 
 ### Requirements
@@ -142,13 +162,6 @@ The inference script handles:
 ```bash
 python run_onnx.py --help
 ```
-
-## Performance
-
-ONNX models provide significant performance benefits:
-- **Reduced Memory**: No PyTorch runtime overhead
-- **Cross-Platform**: Runs on CPU, CUDA, TensorRT, DirectML, etc.
-- **Optimized**: ONNXRuntime automatically optimizes the graph
 
 ### Recommended Execution Providers
 
