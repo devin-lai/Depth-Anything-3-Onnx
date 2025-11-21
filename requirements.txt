@@ -1,0 +1,20 @@
+# Core dependencies for ONNX export
+torch>=2.0.0
+torchvision
+huggingface_hub
+
+# ONNX runtime and inference
+onnxruntime>=1.16.0
+
+# Image processing
+opencv-python
+pillow
+imageio
+numpy<2
+
+# Required by Depth Anything 3 source
+einops
+omegaconf
+
+# Visualization
+matplotlib
