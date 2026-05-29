@@ -76,12 +76,25 @@ python export_onnx.py \
     --output DA3-SMALL-504.onnx
 ```
 
+By default the exported model supports dynamic batch, height, and width axes, and
+the script runs portable ONNX Runtime basic graph optimization.
+
 **Available Models:**
 - `depth-anything/DA3-SMALL` (80M params)
 - `depth-anything/DA3-BASE` (120M params)
 - `depth-anything/DA3-LARGE` (350M params)
 
 **Note:** The first run will download the model from HuggingFace. Models are cached in `~/.cache/huggingface/`.
+
+For mobile converters that prefer a smaller fixed-shape graph, export a static model:
+
+```bash
+python export_onnx.py \
+    --model depth-anything/DA3-SMALL \
+    --process-res 504 \
+    --output DA3-SMALL-504-static.onnx \
+    --static
+```
 
 ### 2. Run Inference
 
@@ -133,8 +146,10 @@ print(f"Depth map shape: {depth.shape}")
 The export script creates ONNX models with:
 - **Input**: `image` tensor of shape `(batch, 3, height, width)`, dtype `float32`, range `[0, 1]`
 - **Output**: `depth` tensor of shape `(batch, 1, height, width)`, dtype `float32`
-- **Dynamic Axes**: Batch size, height, and width are dynamic
+- **Dynamic Axes**: Batch size, height, and width are dynamic unless `--static` is used
+- **Input Size Constraint**: Height and width must be divisible by the DA3 patch size (`14`). `run_onnx.py` handles this through preprocessing.
 - **ONNX Opset**: 17 (configurable via `--opset`)
+- **Graph Optimization**: ONNX Runtime basic optimization is enabled by default
 
 ### Export Options
 
@@ -147,15 +162,21 @@ python export_onnx.py --help
 - `--process-res`: Fixed square resolution for export (e.g., 504, 672)
 - `--output`: Output ONNX file path
 - `--opset`: ONNX opset version (default: 17)
+- `--static`: Export fixed batch/height/width axes for mobile-friendly conversion
+- `--optimize`: ONNX Runtime graph optimization level: `none`, `basic`, `extended`, or `all` (default: `basic`)
 
 ## Inference Details
 
 The inference script handles:
 1. Image loading and preprocessing
-2. Fixed-square resizing to match export resolution
+2. Fixed-square resizing to the requested processing resolution
 3. ONNX model inference
 4. Depth map post-processing and visualization
 5. Resizing output back to original image resolution
+
+Dynamic ONNX exports can be used with different `--process-res` values at
+inference time. Static exports must be run at the same resolution used during
+export.
 
 ### Inference Options
 

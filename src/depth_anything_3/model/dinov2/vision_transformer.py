@@ -215,7 +215,8 @@ class DinoVisionTransformer(nn.Module):
         previous_dtype = x.dtype
         npatch = x.shape[1] - 1
         N = self.pos_embed.shape[1] - 1
-        if npatch == N and w == h:
+        is_onnx_export = torch.onnx.is_in_onnx_export()
+        if not is_onnx_export and npatch == N and w == h:
             return self.pos_embed
         pos_embed = self.pos_embed.float()
         class_pos_embed = pos_embed[:, 0]
@@ -226,7 +227,7 @@ class DinoVisionTransformer(nn.Module):
         M = int(math.sqrt(N))  # Recover the number of patches in each dimension
         assert N == M * M
         kwargs = {}
-        if self.interpolate_offset:
+        if self.interpolate_offset and not is_onnx_export:
             # Historical kludge: add a small number to avoid floating point error in the
             # interpolation, see https://github.com/facebookresearch/dino/issues/8
             # Note: still needed for backward-compatibility, the underlying operators are using
@@ -235,7 +236,8 @@ class DinoVisionTransformer(nn.Module):
             sy = float(h0 + self.interpolate_offset) / M
             kwargs["scale_factor"] = (sx, sy)
         else:
-            # Simply specify an output size instead of a scale factor
+            # For ONNX export, keep the target size tied to input tensor dimensions.
+            # A traced Python scale factor bakes in the export resolution.
             kwargs["size"] = (w0, h0)
         patch_pos_embed = nn.functional.interpolate(
             patch_pos_embed.reshape(1, M, M, dim).permute(0, 3, 1, 2),
@@ -243,7 +245,8 @@ class DinoVisionTransformer(nn.Module):
             antialias=self.interpolate_antialias,
             **kwargs,
         )
-        assert (w0, h0) == patch_pos_embed.shape[-2:]
+        if not is_onnx_export:
+            assert (w0, h0) == patch_pos_embed.shape[-2:]
         patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
         return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1).to(previous_dtype)
 

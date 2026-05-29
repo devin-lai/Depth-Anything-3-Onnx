@@ -230,8 +230,12 @@ class DualDPT(nn.Module):
         fused_main, fused_aux_pyr = self._fuse(resized_feats)
 
         # 3) Upsample to target resolution and (optional) add pos-embed again
-        h_out = int(ph * self.patch_size / self.down_ratio)
-        w_out = int(pw * self.patch_size / self.down_ratio)
+        if torch.onnx.is_in_onnx_export():
+            h_out = H // self.down_ratio
+            w_out = W // self.down_ratio
+        else:
+            h_out = int(ph * self.patch_size / self.down_ratio)
+            w_out = int(pw * self.patch_size / self.down_ratio)
 
         fused_main = custom_interpolate(
             fused_main, (h_out, w_out), mode="bilinear", align_corners=True

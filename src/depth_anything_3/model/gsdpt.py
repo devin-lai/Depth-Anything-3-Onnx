@@ -100,8 +100,12 @@ class GSDPT(DPT):
         fused = self.scratch.output_conv1(fused)
 
         # 3) Upsample to target resolution, optionally add position encoding again
-        h_out = int(ph * self.patch_size / self.down_ratio)
-        w_out = int(pw * self.patch_size / self.down_ratio)
+        if torch.onnx.is_in_onnx_export():
+            h_out = H // self.down_ratio
+            w_out = W // self.down_ratio
+        else:
+            h_out = int(ph * self.patch_size / self.down_ratio)
+            w_out = int(pw * self.patch_size / self.down_ratio)
 
         fused = custom_interpolate(fused, (h_out, w_out), mode="bilinear", align_corners=True)
 

@@ -20,6 +20,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def _is_exporting_graph() -> bool:
+    compiler = getattr(torch, "compiler", None)
+    is_torch_export = bool(
+        compiler is not None
+        and hasattr(compiler, "is_exporting")
+        and compiler.is_exporting()
+    )
+    return torch.onnx.is_in_onnx_export() or is_torch_export
+
+
 class PositionGetter:
     """Generates and caches 2D spatial positions for patches in a grid.
 
@@ -50,12 +60,15 @@ class PositionGetter:
             Tensor of shape (batch_size, height*width, 2) containing y,x coordinates
             for each position in the grid, repeated for each batch item.
         """
-        if (height, width) not in self.position_cache:
+        use_cache = not _is_exporting_graph()
+        if not use_cache or (height, width) not in self.position_cache:
             y_coords = torch.arange(height, device=device)
             x_coords = torch.arange(width, device=device)
             # Use meshgrid to avoid torch.cartesian_prod (unsupported by CoreML converters)
             yy, xx = torch.meshgrid(y_coords, x_coords, indexing="ij")
             positions = torch.stack((yy.reshape(-1), xx.reshape(-1)), dim=-1)
+            if not use_cache:
+                return positions.view(1, height * width, 2).expand(batch_size, -1, -1).clone()
             self.position_cache[height, width] = positions
 
         cached_positions = self.position_cache[height, width]
@@ -87,7 +100,7 @@ class RotaryPositionEmbedding2D(nn.Module):
         self.frequency_cache: Dict[Tuple, Tuple[torch.Tensor, torch.Tensor]] = {}
 
     def _compute_frequency_components(
-        self, dim: int, seq_len: int, device: torch.device, dtype: torch.dtype
+        self, dim: int, seq_len, device: torch.device, dtype: torch.dtype
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Computes frequency components for rotary embeddings.
 
@@ -100,8 +113,9 @@ class RotaryPositionEmbedding2D(nn.Module):
         Returns:
             Tuple of (cosine, sine) tensors for frequency components.
         """
+        use_cache = not _is_exporting_graph()
         cache_key = (dim, seq_len, device, dtype)
-        if cache_key not in self.frequency_cache:
+        if not use_cache or cache_key not in self.frequency_cache:
             # Compute frequency bands
             exponents = torch.arange(0, dim, 2, device=device).float() / dim
             inv_freq = 1.0 / (self.base_frequency**exponents)
@@ -115,6 +129,8 @@ class RotaryPositionEmbedding2D(nn.Module):
             angles = torch.cat((angles, angles), dim=-1)
             cos_components = angles.cos().to(dtype)
             sin_components = angles.sin().to(dtype)
+            if not use_cache:
+                return cos_components, sin_components
             self.frequency_cache[cache_key] = (cos_components, sin_components)
 
         return self.frequency_cache[cache_key]
@@ -182,7 +198,10 @@ class RotaryPositionEmbedding2D(nn.Module):
         feature_dim = tokens.size(-1) // 2
 
         # Get frequency components
-        max_position = int(positions.max()) + 1
+        if _is_exporting_graph():
+            max_position = positions.max() + 1
+        else:
+            max_position = int(positions.max()) + 1
         cos_comp, sin_comp = self._compute_frequency_components(
             feature_dim, max_position, tokens.device, tokens.dtype
         )
